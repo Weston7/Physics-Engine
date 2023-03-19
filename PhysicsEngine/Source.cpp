@@ -5,7 +5,6 @@
 #include <math.h>
 #include "Button.h"
 
-
 class GravitySource
 {
     sf::Vector2f pos;
@@ -42,25 +41,30 @@ public:
 };
 
 
-class Particle
-{
+
+class Particle {
     sf::Vector2f pos;
     sf::Vector2f vel;
     sf::CircleShape s;
 
-
 public:
-    Particle(float pos_x, float pos_y, float vel_x, float vel_y)
+    Particle()
     {
-        pos.x = pos_x;
-        pos.y = pos_y;
-
-        vel.x = vel_x;
-        vel.y = vel_y;
-
-        s.setPosition(pos);
         s.setFillColor(sf::Color::White);
         s.setRadius(20);
+    }
+
+    void start_placing(sf::Vector2f pos) {
+        this->pos = pos;
+    }
+
+    void update_placing(sf::Vector2f pos) {
+        this->pos = pos;
+    }
+
+    void end_placing() {
+        vel.x = 0;
+        vel.y = 0;
     }
 
     void render(sf::RenderWindow& wind)
@@ -91,102 +95,10 @@ public:
 
         pos.x += vel.x;
         pos.y += vel.y;
-
-
-
     }
 
 };
 
-//Button
-Button::Button(float x, float y, float width, float height,
-    std::string text, sf::Font* font,
-    sf::Color idleColor, sf::Color hoverColor, sf::Color activeColor)
-{
-    this->buttonState = BTN_IDLE;
-
-    this->shape.setPosition(sf::Vector2f(x, y));
-    this->shape.setSize(sf::Vector2f(width, height));
-
-
-    this->font = font;
-    this->text.setFont(*this->font);
-    this->text.setString(text);
-    this->text.setFillColor(sf::Color::White);
-    this->text.setCharacterSize(12);
-    this->text.setPosition(
-        this->shape.getPosition().x / 2.f + (this->shape.getGlobalBounds().width / 2.f) - this->text.getGlobalBounds().width / 2.f,
-        this->shape.getPosition().y + (this->shape.getGlobalBounds().height / 2.f) - this->text.getGlobalBounds().height / 2.f
-    );
-
-    this->idleColor = idleColor;
-    this->hoverColor = hoverColor;
-    this->activeColor = activeColor;
-
-    this->shape.setFillColor(this->idleColor);
-}
-
-Button::~Button()
-{
-
-}
-
-const bool Button::isPressed() const
-{
-    if (this->buttonState == BTN_ACTIVE)
-        return true;
-
-
-    return false;
-}
-
-void Button::update(const sf::Vector2f mousePos)
-{
-    //Update the booleans for hover and pressed
-
-    //Idle
-    this->buttonState = BTN_IDLE;
-
-    //Hover
-    if (this->shape.getGlobalBounds().contains(mousePos))
-    {
-        this->buttonState = BTN_HOVER;
-
-
-        //Pressed
-        if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
-        {
-            this->buttonState = BTN_ACTIVE;
-        }
-    }
-
-    switch (this->buttonState)
-    {
-    case BTN_IDLE:
-        this->shape.setFillColor(this->idleColor);
-        break;
-
-    case BTN_HOVER:
-        this->shape.setFillColor(this->hoverColor);
-        break;
-
-    case BTN_ACTIVE:
-        this->shape.setFillColor(this->activeColor);
-        break;
-
-    default:
-        this->shape.setFillColor(sf::Color::Red);
-        break;
-    }
-}
-
-
-
-
-void Button::render(sf::RenderTarget* target)
-{
-    target->draw(this->shape);
-}
 
 
 using namespace sf;
@@ -202,8 +114,11 @@ int main()
     Clock dt_clock;
 
     GravitySource source(1920, 1080, 7000);
+    GravitySource current_source(0, 0, 0); // test
 
-    Particle particle(1520, 800, 3, 0);
+    Particle particle;
+    bool placing_particle = false;
+    bool placing_source = false;
 
     const float gridSize = 50.f;
 
@@ -222,18 +137,49 @@ int main()
     player.setFillColor(Color::Green);
     player.setSize(Vector2f(gridSize, gridSize));
 
-    //Walls
+    //Font
+    sf::Font font;
+
+    if (!font.loadFromFile("C:\\Fonts\\Tahoma.ttf"))
+    {
+    }
+
+    //Button Square Placement
+    Button wallPlacementButton(50.f, 100.f, 150.f, 150.f, "Squares", &font, sf::Color::Blue, sf::Color::Green, sf::Color::Red);
+
+    //Button Circle Placement
+    Button myButton(50.f, 300.f, 150.f, 150.f, "Circles", &font, sf::Color::Blue, sf::Color::Green, sf::Color::Red);
+
+    //Gravity Source
+    Button gravitySourceButton(50.f, 500.f, 150.f, 150.f, "Gravity Source", &font, sf::Color::Blue, sf::Color::Green, sf::Color::Red);
+
+    //Particle Placement
+    Button particlePlacementButton(50.f, 700.f, 150.f, 150.f, "Particles", &font, sf::Color::Blue, sf::Color::Green, sf::Color::Red);
+
+
+    //Circle
+    std::vector<sf::CircleShape> circles;
+
+    //Particle
+    std::vector<Particle> particles;
+
+
+    std::vector<GravitySource> sources;
+    sources.push_back(current_source);
+
     std::vector<RectangleShape> walls;
 
     RectangleShape wall;
     wall.setFillColor(Color::Yellow);
     wall.setSize(Vector2f(gridSize, gridSize));
-    wall.setPosition(gridSize * 5, gridSize * 2);
 
-    walls.push_back(wall);
 
     //Collision
     FloatRect nextPos;
+
+    // 0 = no placement || 1 = Square Placement || 2 = Circle Placement
+    int currentPlacementMode = 0;
+    bool placing = false;
 
 
 
@@ -250,44 +196,217 @@ int main()
                 window.close();
         }
 
-     //Add Walls
+
+        // Placement 0 = no placement || 1 = Square Placement || 2 = Circle Placement || 3 = Particle Placement || 4 = Gravity Source Placement
         if (Mouse::isButtonPressed(Mouse::Left))
         {
-            bool exists = false;
-            for (size_t i = 0; i < walls.size() && !exists; i++)
+            switch (currentPlacementMode)
             {
-                if (walls[i].getPosition().x / (int)gridSize == mousePosGrid.x
-                    && walls[i].getPosition().y / (int)gridSize == mousePosGrid.y)
+            case 0:
+                break;
+            case 1:
+            {
+                bool exists = false;
+                for (size_t i = 0; i < walls.size() && !exists; i++)
                 {
-                    exists = true;
+                    if (walls[i].getPosition().x / (int)gridSize == mousePosGrid.x
+                        && walls[i].getPosition().y / (int)gridSize == mousePosGrid.y)
+                    {
+                        exists = true;
+                    }
                 }
-            }
-            if (!exists)
-            {
-                wall.setPosition(mousePosGrid.x * gridSize, mousePosGrid.y * gridSize);
-                walls.push_back(wall);
-            }
-        } 
 
-        //Remove Wall
-        if (Mouse::isButtonPressed(Mouse::Right))
-        {
-            bool exists = false;
-            int index = -1;
-            for (size_t i = 0; i < walls.size() && !exists; i++)
-            {
-                if (walls[i].getPosition().x / (int)gridSize == mousePosGrid.x
-                    && walls[i].getPosition().y / (int)gridSize == mousePosGrid.y)
+                if (!exists)
                 {
-                    exists = true;
-                    index = i;
+                    wall.setPosition(mousePosGrid.x * gridSize, mousePosGrid.y * gridSize);
+                    walls.push_back(wall);
                 }
+                break;
             }
-            if (exists)
+
+            case 2:
             {
-                walls.erase(walls.begin() + index);
+                static sf::Clock clock;
+                bool mouseClicked = false;
+                if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && !mouseClicked && clock.getElapsedTime().asMilliseconds() > 500) {
+                    sf::Vector2f position = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                    sf::CircleShape circle(50.f);
+                    circle.setFillColor(sf::Color::Green);
+                    circle.setPosition(position);
+                    circles.push_back(circle);
+                    mouseClicked = true;
+                    clock.restart();
+                }
+                if (!sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+                    mouseClicked = false;
+                }
+                break;
+            }
+
+            case 3:
+            {
+                if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+                    // create a new particle and start placing it
+                    Particle p;
+                    p.start_placing(sf::Vector2f(event.mouseButton.x, event.mouseButton.y));
+                    particles.push_back(p);
+                    placing = true;
+                }
+                // check if left mouse button is released
+                else if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left) {
+                    // end placing the particle
+                    particles.back().end_placing();
+                    placing = false;
+                }
+
+                // update the particles
+                if (placing) {
+                    particles.back().update_placing(sf::Vector2f(sf::Mouse::getPosition(window)));
+                }
+                else {
+                    for (auto& p : particles) {
+                        p.update_physics(source);
+                    }
+                }
+                break;
+            }
+
+
+
+            case 4: // Place GravitySource
+                if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+                    if (!placing_source) {
+                        // Start placing a new gravity source
+                        placing_source = true;
+                        sf::Vector2f pos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                        current_source = GravitySource(pos.x, pos.y, 50.f); // Set default strength to 50
+                    }
+                    else {
+                        // Update position of the current gravity source
+                        sf::Vector2f pos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                        current_source = GravitySource(pos.x, pos.y, current_source.get_strength());
+                    }
+                }
+                else if (placing_source) {
+                    // End placing a new gravity source
+                    placing_source = false;
+                    sources.push_back(GravitySource(current_source.get_pos().x, current_source.get_pos().y, current_source.get_strength()));
+                }
+                break;
+
+
+            default:
+                break;
             }
         }
+
+        //0 = no placement || 1 = Square Removal || 2 = Circle Removal || 3 = Particle Removal || 4 = Gravity Source Removal
+        if (Mouse::isButtonPressed(Mouse::Right))
+        {
+            switch (currentPlacementMode)
+            {
+            case 0:
+                break;
+            case 1:
+            {
+                bool exists = false;
+                int index = -1;
+                for (size_t i = 0; i < walls.size() && !exists; i++)
+                {
+                    if (walls[i].getPosition().x / (int)gridSize == mousePosGrid.x
+                        && walls[i].getPosition().y / (int)gridSize == mousePosGrid.y)
+                    {
+                        exists = true;
+                        index = i;
+                    }
+                }
+                if (exists)
+                {
+                    walls.erase(walls.begin() + index);
+                }
+                break;
+            }
+
+            case 2:
+            {
+                sf::Vector2f position = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                for (auto it = circles.begin(); it != circles.end(); ++it)
+                {
+                    if (it->getGlobalBounds().contains(position))
+                    {
+                        circles.erase(it);
+                        break;
+                    }
+                }
+            }
+
+            default:
+                break;
+            }
+
+
+        }
+
+        // Update the circles
+        float deltaTime = dt_clock.restart().asSeconds();
+        for (auto& circle : circles)
+        {
+            // Move the circle
+            circle.move(50.f * deltaTime, 50.f * deltaTime);
+
+            // Check for collisions with other circles
+            for (auto& otherCircle : circles)
+            {
+                if (&circle != &otherCircle) // Don't check for collision with itself
+                {
+                    sf::FloatRect intersection;
+                    if (circle.getGlobalBounds().intersects(otherCircle.getGlobalBounds(), intersection))
+                    {
+                        // Collision detected, reverse the direction of the circle
+                        circle.move(-2 * intersection.width, -2 * intersection.height);
+                    }
+                }
+            }
+        }
+
+        //Button Update
+        sf::Vector2f mousePos(sf::Mouse::getPosition(window));
+        myButton.update(mousePos);
+
+        if (myButton.isPressed())
+        {
+            currentPlacementMode = 2;
+
+        }
+
+        //Wall Placement Button Update
+        wallPlacementButton.update(mousePos);
+
+        if (wallPlacementButton.isPressed())
+        {
+            currentPlacementMode = 1;
+
+        }
+
+
+        //Particle Placement Button Update
+        particlePlacementButton.update(mousePos);
+
+        if (particlePlacementButton.isPressed())
+        {
+            currentPlacementMode = 3;
+
+        }
+
+        //Gravity Source Button Update
+        gravitySourceButton.update(mousePos);
+
+        if (gravitySourceButton.isPressed())
+        {
+            currentPlacementMode = 4;
+
+        }
+
 
         //Player Movement
         velocity.y = 0.f;
@@ -375,7 +494,6 @@ int main()
         }
 
 
-
         player.move(velocity);
 
         //Collision Screen
@@ -399,13 +517,30 @@ int main()
         //Render
         window.clear();
         particle.update_physics(source);
-    
-        window.draw(player);
 
+        window.draw(player);
+        myButton.render(&window);
+        wallPlacementButton.render(&window);
+        gravitySourceButton.render(&window);
+        particlePlacementButton.render(&window);
+
+
+        // Draw Walls
         for (auto& i : walls)
         {
             window.draw(i);
         }
+
+        // Draw Circles
+        for (auto& circle : circles)
+        {
+            window.draw(circle);
+        }
+        //Draw Particles
+        for (auto& p : particles) {
+            p.render(window);
+        }
+
         source.render(window);
         particle.render(window);
 

@@ -7,34 +7,100 @@
 
 enum button_states{BTN_IDLE = 0, BTN_HOVER, BTN_ACTIVE};
 
-
 class Button
 {
 private:
-	short unsigned buttonState;
+    sf::RectangleShape shape;
+    sf::Font* font;
+    sf::Text text;
 
-	sf::RectangleShape shape;
-	sf::Font* font;
-	sf::Text text;
+    sf::Color idleColor;
+    sf::Color hoverColor;
+    sf::Color activeColor;
 
-	sf::Color idleColor;
-	sf::Color hoverColor;
-	sf::Color activeColor;
-
-
+    int buttonState;
 
 public:
-	Button(float x, float y, float width, float height, 
-		std::string text, sf::Font* font, 
-		sf::Color idleColor, sf::Color hoverColor, sf::Color activeColor);
-	~Button();
+    Button(float x, float y, float width, float height, std::string text,
+        sf::Font* font, sf::Color idleColor, sf::Color hoverColor, sf::Color activeColor)
+    {
+        this->buttonState = BTN_IDLE;
 
-	//Accessors
-	const bool isPressed() const;
+        this->shape.setPosition(sf::Vector2f(x, y));
+        this->shape.setSize(sf::Vector2f(width, height));
 
-	//Functions
-	void update(const sf::Vector2f mousePos);
-	void render(sf::RenderTarget* target);
+        this->font = font;
+        this->text.setFont(*this->font);
+        this->text.setString(text);
+        this->text.setFillColor(sf::Color::White);
+        this->text.setCharacterSize(12);
+        this->text.setPosition(
+            this->shape.getPosition().x + (this->shape.getGlobalBounds().width / 2.f) - this->text.getGlobalBounds().width / 2.f,
+            this->shape.getPosition().y + (this->shape.getGlobalBounds().height / 2.f) - this->text.getGlobalBounds().height / 2.f
+        );
+
+        this->idleColor = idleColor;
+        this->hoverColor = hoverColor;
+        this->activeColor = activeColor;
+
+        this->shape.setFillColor(this->idleColor);
+    }
+
+    ~Button() {}
+
+    void update(const sf::Vector2f mousePos)
+    {
+        /* Update the booleans for hover and pressed */
+
+        // Idle
+        this->buttonState = BTN_IDLE;
+
+        // Hover
+        if (this->shape.getGlobalBounds().contains(mousePos))
+        {
+            this->buttonState = BTN_HOVER;
+
+            // Pressed
+            if (this->shape.getGlobalBounds().contains(mousePos))
+            {
+                this->buttonState = BTN_ACTIVE;
+
+            }
+        }
+
+        switch (this->buttonState)
+        {
+        case BTN_IDLE:
+            this->shape.setFillColor(this->idleColor);
+            break;
+
+        case BTN_HOVER:
+            this->shape.setFillColor(this->hoverColor);
+            break;
+
+        case BTN_ACTIVE:
+            this->shape.setFillColor(this->activeColor);
+            break;
+
+        default:
+            this->shape.setFillColor(sf::Color::Red);
+            break;
+        }
+    }
+
+    const bool isPressed() const
+    {
+        if (this->buttonState == BTN_ACTIVE)
+            return true;
+
+        return false;
+    }
+
+    void render(sf::RenderTarget* target)
+    {
+        target->draw(this->shape);
+        target->draw(this->text);
+    }
 };
 
 
